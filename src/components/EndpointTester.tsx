@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EndpointService } from '@/lib/endpoint-service';
+import { ProxyDetectionCard } from '@/components/ProxyDetectionCard';
 import { EndpointTest, TestStats, LookupType } from '@/types/endpoint';
 import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock, Globe, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -174,6 +175,9 @@ export const EndpointTester = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Proxy Detection Card */}
+        <ProxyDetectionCard />
 
         {/* Lookup Type Selector */}
         <Card>
