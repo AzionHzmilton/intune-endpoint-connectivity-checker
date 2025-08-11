@@ -18,6 +18,7 @@ export interface EndpointTest {
   responseTime?: number;
   error?: string;
   timestamp?: Date;
+  method?: 'http-head' | 'webrtc-stun';
 }
 
 export interface TestStats {

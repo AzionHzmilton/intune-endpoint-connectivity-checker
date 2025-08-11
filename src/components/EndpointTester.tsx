@@ -339,6 +339,11 @@ export const EndpointTester = () => {
                           Time to failure: {result.responseTime}ms
                         </p>
                       )}
+                      {result.method && (
+                        <p className="text-xs text-muted-foreground">
+                          Test: {result.method === 'webrtc-stun' ? 'STUN/ICE (UDP inference)' : 'HTTP HEAD'}
+                        </p>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -358,6 +363,11 @@ export const EndpointTester = () => {
                         <Badge variant="secondary" className="bg-warning-muted text-warning">
                           <Clock className="h-3 w-3 mr-1" />
                           Pending
+                        </Badge>
+                      )}
+                      {result.method && (
+                        <Badge variant="outline" className="ml-2">
+                          {result.method === 'webrtc-stun' ? 'STUN/ICE' : 'HTTP'}
                         </Badge>
                       )}
                     </div>

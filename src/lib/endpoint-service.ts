@@ -109,8 +109,17 @@ export class EndpointService {
       const scheme = schemeMatch?.[1]?.toLowerCase();
       const isNonHttpScheme = !!scheme && scheme !== 'http' && scheme !== 'https';
 
-      if (isNonHttpScheme) {
-        // Use WebRTC STUN/ICE to infer UDP reachability for non-HTTP(S) checks
+      // Parse hostname to detect UDP-only known services (e.g., NTP)
+      let hostname = '';
+      try {
+        const parsed = /^[a-zA-Z][\w+.-]*:\/\//.test(endpoint) ? new URL(endpoint) : new URL(`https://${endpoint}`);
+        hostname = parsed.hostname.toLowerCase();
+      } catch {}
+
+      const isKnownUdpService = hostname === 'time.windows.com';
+
+      if (isNonHttpScheme || isKnownUdpService) {
+        // Use WebRTC STUN/ICE to infer UDP reachability for UDP/non-HTTP(S) checks
         const webrtcStart = Date.now();
         const detection = await ProxyDetectionService.detectProxy();
         const responseTime = Date.now() - webrtcStart;
@@ -122,6 +131,7 @@ export class EndpointService {
             responseTime,
             error: 'WebRTC not supported in this browser (cannot run UDP/STUN test)',
             timestamp: new Date(),
+            method: 'webrtc-stun',
           };
         }
 
@@ -131,6 +141,7 @@ export class EndpointService {
             status: 'success',
             responseTime,
             timestamp: new Date(),
+            method: 'webrtc-stun',
           };
         }
 
@@ -142,6 +153,7 @@ export class EndpointService {
             ? 'Only TURN relay observed (UDP restricted or strict NAT)'
             : 'STUN failed (UDP likely blocked)',
           timestamp: new Date(),
+          method: 'webrtc-stun',
         };
       }
       
@@ -179,6 +191,7 @@ export class EndpointService {
           status: 'success',
           responseTime,
           timestamp: new Date(),
+          method: 'http-head',
         };
         
       } catch (fetchError) {
@@ -195,6 +208,7 @@ export class EndpointService {
               responseTime,
               error: `Connection timeout (${timeoutMs / 1000}s)`,
               timestamp: new Date(),
+              method: 'http-head',
             };
           }
           
@@ -211,6 +225,7 @@ export class EndpointService {
               status: 'success',
               responseTime,
               timestamp: new Date(),
+              method: 'http-head',
             };
           }
         }
@@ -222,6 +237,7 @@ export class EndpointService {
           responseTime,
           error: fetchError instanceof Error ? fetchError.message : 'Connection failed',
           timestamp: new Date(),
+          method: 'http-head',
         };
       }
       
@@ -233,6 +249,7 @@ export class EndpointService {
         responseTime,
         error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date(),
+        method: 'http-head',
       };
     }
   }
