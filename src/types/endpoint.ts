@@ -27,3 +27,5 @@ export interface TestStats {
   failed: number;
   pending: number;
 }
+
+export type LookupType = 'FQDN' | 'IP';

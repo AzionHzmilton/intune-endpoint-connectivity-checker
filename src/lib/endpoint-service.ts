@@ -1,10 +1,10 @@
-import { MicrosoftEndpoint, EndpointTest } from '@/types/endpoint';
+import { MicrosoftEndpoint, EndpointTest, LookupType } from '@/types/endpoint';
 
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const MICROSOFT_ENDPOINTS_API = 'https://endpoints.office.com/endpoints/WorldWide?ServiceAreas=MEM&clientrequestid=';
 
 export class EndpointService {
-  static async fetchMicrosoftEndpoints(): Promise<string[]> {
+  static async fetchMicrosoftEndpoints(lookupType: LookupType = 'FQDN'): Promise<string[]> {
     try {
       const requestId = crypto.randomUUID();
       const url = `${CORS_PROXY}${encodeURIComponent(MICROSOFT_ENDPOINTS_API + requestId)}`;
@@ -16,24 +16,45 @@ export class EndpointService {
       
       const endpoints: MicrosoftEndpoint[] = await response.json();
       
-      // Filter for MEM service area endpoints with URLs
-      const memEndpoints = endpoints.filter(
-        endpoint => endpoint.serviceArea === 'MEM' && endpoint.urls
-      );
-      
-      // Extract unique URLs
-      const urls = new Set<string>();
-      memEndpoints.forEach(endpoint => {
-        endpoint.urls?.forEach(url => {
-          // Clean up URL patterns (remove wildcards)
-          const cleanUrl = url.replace(/\*/g, '').replace(/^\./, '');
-          if (cleanUrl && !cleanUrl.includes('*')) {
-            urls.add(cleanUrl);
-          }
+      if (lookupType === 'FQDN') {
+        // Filter for MEM service area endpoints with URLs
+        const memEndpoints = endpoints.filter(
+          endpoint => endpoint.serviceArea === 'MEM' && endpoint.urls
+        );
+        
+        // Extract unique URLs
+        const urls = new Set<string>();
+        memEndpoints.forEach(endpoint => {
+          endpoint.urls?.forEach(url => {
+            // Clean up URL patterns (remove wildcards)
+            const cleanUrl = url.replace(/\*/g, '').replace(/^\./, '');
+            if (cleanUrl && !cleanUrl.includes('*')) {
+              urls.add(cleanUrl);
+            }
+          });
         });
-      });
-      
-      return Array.from(urls).sort();
+        
+        return Array.from(urls).sort();
+      } else {
+        // Filter for MEM service area endpoints with IPs
+        const memEndpoints = endpoints.filter(
+          endpoint => endpoint.serviceArea === 'MEM' && endpoint.ips
+        );
+        
+        // Extract unique IPs
+        const ips = new Set<string>();
+        memEndpoints.forEach(endpoint => {
+          endpoint.ips?.forEach(ip => {
+            // Clean up IP patterns (remove subnets for individual IP testing)
+            const cleanIp = ip.includes('/') ? ip.split('/')[0] : ip;
+            if (cleanIp && cleanIp.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+              ips.add(cleanIp);
+            }
+          });
+        });
+        
+        return Array.from(ips).sort();
+      }
     } catch (error) {
       console.error('Error fetching Microsoft endpoints:', error);
       throw error;

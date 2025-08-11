@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EndpointService } from '@/lib/endpoint-service';
-import { EndpointTest, TestStats } from '@/types/endpoint';
-import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { EndpointTest, TestStats, LookupType } from '@/types/endpoint';
+import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock, Globe, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export const EndpointTester = () => {
@@ -15,6 +16,7 @@ export const EndpointTester = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [lookupType, setLookupType] = useState<LookupType>('FQDN');
   const [testProgress, setTestProgress] = useState({ completed: 0, total: 0, current: '' });
   const { toast } = useToast();
 
@@ -33,12 +35,12 @@ export const EndpointTester = () => {
   const loadEndpoints = async () => {
     setIsLoading(true);
     try {
-      const urls = await EndpointService.fetchMicrosoftEndpoints();
-      setEndpoints(urls);
-      setTestResults(urls.map(url => ({ url, status: 'pending' as const })));
+      const endpoints = await EndpointService.fetchMicrosoftEndpoints(lookupType);
+      setEndpoints(endpoints);
+      setTestResults(endpoints.map(endpoint => ({ url: endpoint, status: 'pending' as const })));
       toast({
         title: "Endpoints loaded",
-        description: `Found ${urls.length} Microsoft 365 endpoints`,
+        description: `Found ${endpoints.length} Intune ${lookupType} endpoints`,
       });
     } catch (error) {
       toast({
@@ -82,7 +84,7 @@ export const EndpointTester = () => {
 
   useEffect(() => {
     loadEndpoints();
-  }, []);
+  }, [lookupType]);
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -151,12 +153,46 @@ export const EndpointTester = () => {
           </Card>
         </div>
 
+        {/* Lookup Type Selector */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Endpoint Type</CardTitle>
+            <CardDescription>
+              Select the type of endpoints to test
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={lookupType} onValueChange={(value) => setLookupType(value as LookupType)}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="FQDN" className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  FQDN (URLs)
+                </TabsTrigger>
+                <TabsTrigger value="IP" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  IP Addresses
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="FQDN" className="mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Test connectivity to Intune service URLs (Fully Qualified Domain Names)
+                </p>
+              </TabsContent>
+              <TabsContent value="IP" className="mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Test connectivity to Intune service IP addresses
+                </p>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
         {/* Controls */}
         <Card>
           <CardHeader>
             <CardTitle>Connectivity Testing</CardTitle>
             <CardDescription>
-              Load and test Microsoft 365 endpoint connectivity
+              Load and test Intune endpoint connectivity
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -204,7 +240,7 @@ export const EndpointTester = () => {
             <CardHeader>
               <CardTitle>Test Results</CardTitle>
               <CardDescription>
-                Connectivity test results for Microsoft 365 endpoints
+                Connectivity test results for Intune {lookupType} endpoints
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
