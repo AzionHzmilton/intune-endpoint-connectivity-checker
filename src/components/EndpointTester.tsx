@@ -42,7 +42,7 @@ export const EndpointTester = () => {
   const loadEndpoints = async () => {
     setIsLoading(true);
     try {
-      const endpoints = await EndpointService.fetchMicrosoftEndpoints(lookupType);
+      const endpoints = await EndpointService.fetchIntuneEndpoints(lookupType);
       setEndpoints(endpoints);
       setTestResults(endpoints.map(endpoint => ({ url: endpoint, status: 'pending' as const })));
       toast({
@@ -105,7 +105,7 @@ export const EndpointTester = () => {
             </h1>
           </div>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Test network connectivity to Microsoft Intune endpoints required for proper service operation
+            Test network connectivity to Intune endpoints required for proper service operation
           </p>
         </div>
 

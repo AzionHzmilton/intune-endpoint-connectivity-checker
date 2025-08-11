@@ -1,23 +1,23 @@
-import { MicrosoftEndpoint, EndpointTest, LookupType } from '@/types/endpoint';
+import { IntuneEndpoint, EndpointTest, LookupType } from '@/types/endpoint';
 
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-const MICROSOFT_ENDPOINTS_API = 'https://endpoints.office.com/endpoints/WorldWide?ServiceAreas=MEM&clientrequestid=';
+const INTUNE_ENDPOINTS_API = 'https://endpoints.office.com/endpoints/WorldWide?ServiceAreas=MEM&clientrequestid=';
 
 export class EndpointService {
-  static async fetchMicrosoftEndpoints(lookupType: LookupType = 'FQDN'): Promise<string[]> {
+  static async fetchIntuneEndpoints(lookupType: LookupType = 'FQDN'): Promise<string[]> {
     try {
       const requestId = crypto.randomUUID();
-      const url = `${CORS_PROXY}${encodeURIComponent(MICROSOFT_ENDPOINTS_API + requestId)}`;
+      const url = `${CORS_PROXY}${encodeURIComponent(INTUNE_ENDPOINTS_API + requestId)}`;
       
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch endpoints: ${response.status}`);
       }
       
-      const endpoints: MicrosoftEndpoint[] = await response.json();
+      const endpoints: IntuneEndpoint[] = await response.json();
       
       if (lookupType === 'FQDN') {
-        // Filter for MEM service area endpoints with URLs
+        // Filter for MEM (Intune) service area endpoints with URLs
         const memEndpoints = endpoints.filter(
           endpoint => endpoint.serviceArea === 'MEM' && endpoint.urls
         );
@@ -36,7 +36,7 @@ export class EndpointService {
         
         return Array.from(urls).sort();
       } else {
-        // Filter for MEM service area endpoints with IPs
+        // Filter for MEM (Intune) service area endpoints with IPs
         const memEndpoints = endpoints.filter(
           endpoint => endpoint.serviceArea === 'MEM' && endpoint.ips
         );
@@ -56,7 +56,7 @@ export class EndpointService {
         return Array.from(ips).sort();
       }
     } catch (error) {
-      console.error('Error fetching Microsoft endpoints:', error);
+      console.error('Error fetching Intune endpoints:', error);
       throw error;
     }
   }

@@ -1,4 +1,4 @@
-export interface MicrosoftEndpoint {
+export interface IntuneEndpoint {
   id: number;
   serviceArea: string;
   serviceAreaDisplayName: string;
