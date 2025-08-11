@@ -10,7 +10,7 @@ import { ProxyDetectionCard } from '@/components/ProxyDetectionCard';
 import { EndpointTest, TestStats, LookupType } from '@/types/endpoint';
 import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock, Globe, MapPin, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
+import { Link } from 'react-router-dom';
 export const EndpointTester = () => {
   const [endpoints, setEndpoints] = useState<string[]>([]);
   const [testResults, setTestResults] = useState<EndpointTest[]>([]);
@@ -143,6 +143,11 @@ export const EndpointTester = () => {
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Test network connectivity to Intune endpoints required for proper service operation
           </p>
+          <div className="flex justify-center">
+            <Button asChild variant="link">
+              <Link to="/docs/test-methodology" aria-label="View test methodology">View test methodology</Link>
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
