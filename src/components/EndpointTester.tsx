@@ -341,7 +341,11 @@ export const EndpointTester = () => {
                       )}
                       {result.method && (
                         <p className="text-xs text-muted-foreground">
-                          Test: {result.method === 'webrtc-stun' ? 'STUN/ICE (UDP inference)' : 'HTTP HEAD'}
+                          Test: {result.method === 'webrtc-stun'
+                            ? 'STUN/ICE (UDP inference)'
+                            : result.method === 'http-head-http'
+                              ? 'HTTP HEAD'
+                              : 'HTTPS HEAD'}
                         </p>
                       )}
                     </div>
@@ -367,7 +371,7 @@ export const EndpointTester = () => {
                       )}
                       {result.method && (
                         <Badge variant="outline" className="ml-2">
-                          {result.method === 'webrtc-stun' ? 'STUN/ICE' : 'HTTP'}
+                          {result.method === 'webrtc-stun' ? 'STUN/ICE' : (result.method === 'http-head-http' ? 'HTTP' : 'HTTPS')}
                         </Badge>
                       )}
                     </div>

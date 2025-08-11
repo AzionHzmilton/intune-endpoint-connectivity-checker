@@ -208,30 +208,29 @@ export class EndpointService {
           status: 'success',
           responseTime,
           timestamp: new Date(),
-          method: 'http-head',
+          method: 'http-head-https',
         };
         
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        const responseTime = Date.now() - startTime;
-        
-        // Handle specific error types for client-side testing
+        const httpsResponseTime = Date.now() - startTime;
+
+        // Handle specific error types for client-side testing (HTTPS attempt)
         if (fetchError instanceof Error) {
-          // Timeout indicates unreachable endpoint
           if (fetchError.name === 'AbortError') {
+            // HTTPS timed out - no time left for fallback
             return {
               url: endpoint,
               status: 'error',
-              responseTime,
-              error: `Connection timeout (${timeoutMs / 1000}s)`,
+              responseTime: httpsResponseTime,
+              error: `HTTPS timeout (${timeoutMs / 1000}s)`,
               timestamp: new Date(),
-              method: 'http-head',
+              method: 'http-head-https',
             };
           }
-          
-          // In no-cors mode, many "network errors" actually indicate the endpoint responded
-          // This is a limitation of browser security, but we can infer connectivity
-          if (responseTime < (timeoutMs * 0.8) && (
+
+          // In no-cors mode, many "network errors" indicate the endpoint responded
+          if (httpsResponseTime < (timeoutMs * 0.8) && (
             fetchError.message.includes('Failed to fetch') ||
             fetchError.message.includes('NetworkError') ||
             fetchError.message.includes('blocked by CORS') ||
@@ -240,21 +239,91 @@ export class EndpointService {
             return {
               url: endpoint,
               status: 'success',
-              responseTime,
+              responseTime: httpsResponseTime,
               timestamp: new Date(),
-              method: 'http-head',
+              method: 'http-head-https',
             };
           }
         }
-        
-        // Other errors indicate actual connectivity issues
+
+        // HTTPS failed; try HTTP fallback if we have remaining time
+        const elapsed = httpsResponseTime;
+        const remaining = Math.max(0, timeoutMs - elapsed);
+        if (remaining > 1000) {
+          const httpUrl = isIP ? `http://${endpoint}` : (endpoint.startsWith('http') ? endpoint.replace(/^https:\/\//, 'http://') : `http://${endpoint}`);
+          const httpController = new AbortController();
+          const httpTimeoutId = setTimeout(() => httpController.abort(), remaining);
+
+          const httpStart = Date.now();
+          try {
+            await fetch(httpUrl, {
+              method: 'HEAD',
+              mode: 'no-cors',
+              signal: httpController.signal,
+              cache: 'no-cache',
+              redirect: 'follow'
+            });
+            clearTimeout(httpTimeoutId);
+            const httpRespTime = Date.now() - httpStart;
+            return {
+              url: endpoint,
+              status: 'success',
+              responseTime: elapsed + httpRespTime,
+              timestamp: new Date(),
+              method: 'http-head-http',
+            };
+          } catch (httpError) {
+            clearTimeout(httpTimeoutId);
+            const httpRespTime = Date.now() - httpStart;
+
+            if (httpError instanceof Error) {
+              if (httpError.name === 'AbortError') {
+                return {
+                  url: endpoint,
+                  status: 'error',
+                  responseTime: elapsed + httpRespTime,
+                  error: `HTTP fallback timeout (${Math.round(remaining/1000)}s)`,
+                  timestamp: new Date(),
+                  method: 'http-head-http',
+                };
+              }
+
+              // Similar inference for no-cors errors
+              if (httpRespTime < remaining * 0.8 && (
+                httpError.message.includes('Failed to fetch') ||
+                httpError.message.includes('NetworkError') ||
+                httpError.message.includes('blocked by CORS') ||
+                httpError.message.includes('CORS')
+              )) {
+                return {
+                  url: endpoint,
+                  status: 'success',
+                  responseTime: elapsed + httpRespTime,
+                  timestamp: new Date(),
+                  method: 'http-head-http',
+                };
+              }
+            }
+
+            return {
+              url: endpoint,
+              status: 'error',
+              responseTime: elapsed + httpRespTime,
+              error: httpError instanceof Error ? httpError.message : 'Connection failed (HTTP fallback)',
+              timestamp: new Date(),
+              method: 'http-head-http',
+            };
+          }
+        }
+
+        // No time to fallback or fallback not attempted
         return {
           url: endpoint,
           status: 'error',
-          responseTime,
+          responseTime: httpsResponseTime,
           error: fetchError instanceof Error ? fetchError.message : 'Connection failed',
           timestamp: new Date(),
-          method: 'http-head',
+          method: 'http-head-https',
         };
       }
       
@@ -266,7 +335,7 @@ export class EndpointService {
         responseTime,
         error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date(),
-        method: 'http-head',
+        method: 'http-head-https',
       };
     }
   }
