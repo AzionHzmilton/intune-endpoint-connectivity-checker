@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EndpointService } from '@/lib/endpoint-service';
 import { ProxyDetectionCard } from '@/components/ProxyDetectionCard';
 import { EndpointTest, TestStats, LookupType } from '@/types/endpoint';
-import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock, Globe, MapPin } from 'lucide-react';
+import { Search, RefreshCw, Activity, CheckCircle, XCircle, Clock, Globe, MapPin, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export const EndpointTester = () => {
@@ -90,6 +90,39 @@ export const EndpointTester = () => {
     } finally {
       setIsTesting(false);
     }
+  };
+
+  const handleExport = () => {
+    if (testResults.length === 0) return;
+
+    const headers = ['url','status','responseTime','method','error','timestamp'];
+    const escape = (val: unknown) => {
+      const s = val === undefined || val === null ? '' : String(val);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+
+    const rows = testResults.map(r => [
+      r.url,
+      r.status,
+      r.responseTime ?? '',
+      r.method ?? '',
+      r.error ?? '',
+      r.timestamp ? new Date(r.timestamp).toISOString() : ''
+    ]);
+
+    const csv = [headers.map(escape).join(','), ...rows.map(row => row.map(escape).join(','))].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+    a.href = url;
+    a.download = `intune-connectivity-results-${lookupType.toLowerCase()}-${date}.csv`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -306,6 +339,18 @@ export const EndpointTester = () => {
                 </div>
               )}
               
+              <div className="flex justify-end">
+                <Button 
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={testResults.length === 0}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Export CSV
+                </Button>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
