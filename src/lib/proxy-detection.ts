@@ -126,105 +126,53 @@ export class ProxyDetectionService {
 
   private static async checkSSLInspection(): Promise<{ detected: boolean; details: string[] }> {
     const details: string[] = [];
-    let detected = false;
 
     try {
-      // Test multiple HTTPS endpoints to detect SSL inspection
+      // Timing-only HTTPS probes using no-cors to avoid CORS failures
       const testSites = [
-        'https://www.google.com',
-        'https://github.com',
-        'https://stackoverflow.com'
+        'https://www.cloudflare.com',
+        'https://developer.mozilla.org',
+        'https://www.microsoft.com'
       ];
 
-      const promises = testSites.map(async (url) => {
+      const timings: { host: string; ms: number; ok: boolean }[] = [];
+      const probes = testSites.map(async (url) => {
+        const host = new URL(url).hostname;
+        const start = performance.now();
         try {
-          const startTime = performance.now();
-          const response = await fetch(url, {
+          await fetch(url, {
             method: 'HEAD',
-            mode: 'cors',
+            mode: 'no-cors',
+            cache: 'no-cache',
             signal: AbortSignal.timeout(5000)
           });
-          const endTime = performance.now();
-
-          // Check for SSL inspection indicators
-          const headers = Array.from(response.headers.entries());
-          
-          // Look for corporate/proxy SSL certificate indicators
-          const suspiciousHeaders = headers.filter(([key, value]) => {
-            const lowerKey = key.toLowerCase();
-            const lowerValue = value.toLowerCase();
-            
-            return (
-              lowerKey.includes('proxy') ||
-              lowerKey.includes('firewall') ||
-              lowerKey.includes('security') ||
-              lowerValue.includes('corporate') ||
-              lowerValue.includes('inspection') ||
-              lowerValue.includes('zscaler') ||
-              lowerValue.includes('bluecoat') ||
-              lowerValue.includes('forcepoint') ||
-              lowerValue.includes('websense')
-            );
-          });
-
-          if (suspiciousHeaders.length > 0) {
-            detected = true;
-            details.push(`SSL inspection headers found for ${new URL(url).hostname}`);
-          }
-
-          // Check for unusually long SSL handshake times (may indicate inspection)
-          if (endTime - startTime > 2000) {
-            details.push(`Slow SSL handshake to ${new URL(url).hostname} (${Math.round(endTime - startTime)}ms)`);
-          }
-
-        } catch (error) {
-          // CORS errors are expected and don't indicate SSL inspection
-          if (error instanceof Error && !error.message.includes('CORS')) {
-            details.push(`SSL connection failed to ${new URL(url).hostname}: ${error.message}`);
-          }
+          timings.push({ host, ms: Math.round(performance.now() - start), ok: true });
+        } catch {
+          timings.push({ host, ms: Math.round(performance.now() - start), ok: false });
         }
       });
 
-      await Promise.allSettled(promises);
+      await Promise.allSettled(probes);
 
-      // Additional check: Look for mixed content policies that might indicate inspection
-      if (window.location.protocol === 'https:') {
-        try {
-          // Try to detect if WebSocket connections are being intercepted
-          const wsTest = new WebSocket('wss://echo.websocket.org');
-          
-          wsTest.onopen = () => {
-            wsTest.close();
-          };
-          
-          wsTest.onerror = () => {
-            details.push('WebSocket SSL connection blocked (possible inspection)');
-            detected = true;
-          };
-          
-          // Clean up after 2 seconds
-          setTimeout(() => {
-            if (wsTest.readyState === WebSocket.CONNECTING) {
-              wsTest.close();
-            }
-          }, 2000);
-          
-        } catch (error) {
-          // WebSocket not supported or blocked
-        }
+      timings.forEach(t => {
+        details.push(`${t.host}: ${t.ok ? 'reachable' : 'blocked'} in ${t.ms}ms`);
+      });
+
+      // We don't assert SSL inspection due to browser limitations; we just report anomalies
+      const slowCount = timings.filter(t => t.ms > 2500).length;
+      const allBlocked = timings.length > 0 && timings.every(t => !t.ok);
+      if (slowCount >= 2) {
+        details.push('Multiple HTTPS probes were unusually slow (>2500ms). SSL inspection could be present.');
+      }
+      if (allBlocked) {
+        details.push('All HTTPS probes failed. A strict proxy or SSL inspection may be blocking requests.');
       }
 
-      // Check for certificate transparency violations (advanced detection)
-      if (navigator.userAgent && !navigator.userAgent.includes('Chrome')) {
-        // This is a simplified check - in reality, this would require more complex certificate validation
-        details.push('Certificate validation limited in this browser');
-      }
-
+      return { detected: false, details };
     } catch (error) {
-      details.push(`SSL inspection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      details.push(`SSL inspection probe skipped: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { detected: false, details };
     }
-
-    return { detected, details };
   }
 
   private static async checkWebRTCUDP(timeoutMs: number = 4000) {
