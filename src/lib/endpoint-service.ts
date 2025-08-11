@@ -110,15 +110,18 @@ export class EndpointService {
       const isNonHttpScheme = !!scheme && scheme !== 'http' && scheme !== 'https';
 
       // Parse hostname to detect UDP-only known services (e.g., NTP)
+      const raw = endpoint.trim();
+      const hostCandidateMatch = raw.match(/([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|(?:\d{1,3}\.){3}\d{1,3})/);
+      const hostCandidate = hostCandidateMatch?.[0]?.toLowerCase() ?? '';
       let hostname = '';
       try {
-        const parsed = /^[a-zA-Z][\w+.-]*:\/\//.test(endpoint) ? new URL(endpoint) : new URL(`https://${endpoint}`);
+        const parsed = /^[a-zA-Z][\w+.-]*:\/\//.test(raw) ? new URL(raw) : new URL(`https://${raw}`);
         hostname = parsed.hostname.toLowerCase();
       } catch {}
 
       const schemeIsUdpish = !!scheme && ['stun', 'stuns', 'turn', 'turns', 'ntp', 'udp'].includes(scheme);
-      const hintUdpInString = /(^|\b)(ntp|udp)(\b|:)/i.test(endpoint) || /:123(\b|$)/.test(endpoint);
-      const isKnownUdpService = hostname.endsWith('time.windows.com');
+      const hintUdpInString = /(^|\b)(ntp|udp)(\b|:)/i.test(raw) || /:123(\b|$)/.test(raw);
+      const isKnownUdpService = hostname.endsWith('time.windows.com') || hostCandidate.endsWith('time.windows.com') || raw.toLowerCase().includes('time.windows.com');
 
       if (isNonHttpScheme || schemeIsUdpish || hintUdpInString || isKnownUdpService) {
         // Use WebRTC STUN/ICE to infer UDP reachability for UDP/non-HTTP(S) checks
