@@ -6,6 +6,20 @@ export interface ProxyDetectionResult {
     detected: boolean;
     details: string[];
   };
+  webrtc?: {
+    supported: boolean;
+    stunSucceeded: boolean;
+    candidateTypes: string[]; // host, srflx, relay
+    candidateProtocols: string[]; // udp, tcp
+    relayOnly: boolean;
+    details: string[];
+  };
+  quic?: {
+    supported: boolean; // WebTransport API support
+    attempted: boolean;
+    connected: boolean;
+    details: string[];
+  };
   details: {
     externalIP?: string;
     localIPs?: string[];
@@ -213,13 +227,102 @@ export class ProxyDetectionService {
     return { detected, details };
   }
 
+  private static async checkWebRTCUDP(timeoutMs: number = 4000) {
+    const result = {
+      supported: typeof RTCPeerConnection !== 'undefined',
+      stunSucceeded: false,
+      candidateTypes: [] as string[],
+      candidateProtocols: [] as string[],
+      relayOnly: false,
+      details: [] as string[]
+    };
+
+    if (!result.supported) {
+      result.details.push('WebRTC not supported in this browser');
+      return result;
+    }
+
+    return new Promise<typeof result>((resolve) => {
+      const candidateTypes = new Set<string>();
+      const candidateProtocols = new Set<string>();
+      let gotSrflxUDP = false;
+      let gotRelay = false;
+
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
+        ]
+      });
+
+      // Create a dummy data channel to kick off ICE gathering
+      pc.createDataChannel('probe');
+
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) return;
+        const cand = e.candidate.candidate; // SDP string
+        // Extract protocol (udp/tcp) and type (host/srflx/relay)
+        const protoMatch = cand.match(/candidate:\S+ \d+ (udp|tcp)/i);
+        const typeMatch = cand.match(/ typ (host|srflx|relay)/i);
+        if (protoMatch) candidateProtocols.add(protoMatch[1].toLowerCase());
+        if (typeMatch) {
+          const t = typeMatch[1].toLowerCase();
+          candidateTypes.add(t);
+          if (t === 'srflx' && / udp /i.test(' ' + cand + ' ')) {
+            gotSrflxUDP = true;
+          }
+          if (t === 'relay') gotRelay = true;
+        }
+      };
+
+      const finalize = () => {
+        try { pc.close(); } catch {}
+        result.candidateTypes = Array.from(candidateTypes);
+        result.candidateProtocols = Array.from(candidateProtocols);
+        result.stunSucceeded = gotSrflxUDP;
+        result.relayOnly = !gotSrflxUDP && gotRelay;
+        if (result.stunSucceeded) result.details.push('STUN produced server-reflexive UDP candidate');
+        if (result.relayOnly) result.details.push('Only TURN relay candidates observed');
+        if (!result.stunSucceeded && !result.relayOnly) result.details.push('No useful ICE candidates gathered');
+        resolve(result);
+      };
+
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === 'complete') finalize();
+      };
+
+      pc.createOffer()
+        .then(offer => pc.setLocalDescription(offer))
+        .catch(() => finalize());
+
+      // Safety timeout
+      setTimeout(finalize, timeoutMs);
+    });
+  }
+
+  private static async checkWebTransportQUIC(timeoutMs: number = 4000) {
+    const supported = typeof (window as any).WebTransport !== 'undefined';
+    const details: string[] = [];
+
+    if (!supported) {
+      details.push('WebTransport API not supported in this browser');
+      return { supported, attempted: false, connected: false, details };
+    }
+
+    // We avoid attempting a real connection due to CORS/policy on public endpoints.
+    details.push('WebTransport API available; network probe skipped to avoid CORS issues');
+    return { supported, attempted: false, connected: false, details };
+  }
+
   public static async detectProxy(): Promise<ProxyDetectionResult> {
-    const [externalIP, localIPs, headerCheck, latency, sslInspection] = await Promise.all([
+    const [externalIP, localIPs, headerCheck, latency, sslInspection, webrtc, quic] = await Promise.all([
       this.getExternalIP(),
       this.getLocalIPs(),
       this.checkProxyHeaders(),
       this.measureLatency(),
-      this.checkSSLInspection()
+      this.checkSSLInspection(),
+      this.checkWebRTCUDP(),
+      this.checkWebTransportQUIC()
     ]);
 
     const detectionMethods: string[] = [];
@@ -246,12 +349,24 @@ export class ProxyDetectionService {
       }
     }
 
-    // Check for high latency (low confidence)
+    // WebRTC UDP inference (medium confidence)
+    if (webrtc.supported) {
+      if (!webrtc.stunSucceeded) {
+        detectionMethods.push('UDP likely blocked or STUN failed');
+        if (confidence === 'low') confidence = 'medium';
+      }
+      if (webrtc.relayOnly) {
+        detectionMethods.push('Strict NAT or UDP restricted (TURN relay only)');
+        if (confidence === 'low') confidence = 'medium';
+      }
+    }
+
+    // High latency (low confidence)
     if (latency > 1000) {
       detectionMethods.push('High network timing detected (>1000ms)');
     }
 
-    // Check for typical proxy indicators
+    // Typical proxy indicator
     if (localIPs.length === 0) {
       detectionMethods.push('WebRTC blocked (possible proxy)');
     }
@@ -263,6 +378,8 @@ export class ProxyDetectionService {
       confidence,
       detectionMethods,
       sslInspection,
+      webrtc,
+      quic,
       details: {
         externalIP,
         localIPs,

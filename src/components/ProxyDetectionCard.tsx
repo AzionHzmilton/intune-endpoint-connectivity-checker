@@ -156,6 +156,50 @@ export const ProxyDetectionCard = () => {
                 </div>
               </div>
             )}
+
+            {detection.webrtc && (
+              <div className="text-xs">
+                <p className="font-medium text-muted-foreground mb-1">UDP via WebRTC (STUN):</p>
+                <div className="space-y-1 text-muted-foreground">
+                  <div>
+                    Supported: <span className="font-mono">{detection.webrtc.supported ? 'yes' : 'no'}</span>
+                  </div>
+                  {detection.webrtc.supported && (
+                    <>
+                      <div>
+                        STUN succeeded: <span className="font-mono">{detection.webrtc.stunSucceeded ? 'yes' : 'no'}</span>
+                      </div>
+                      <div>
+                        Candidate types: <span className="font-mono">{detection.webrtc.candidateTypes.length ? detection.webrtc.candidateTypes.join(', ') : 'none'}</span>
+                      </div>
+                      <div>
+                        Protocols: <span className="font-mono">{detection.webrtc.candidateProtocols.length ? detection.webrtc.candidateProtocols.join(', ') : 'none'}</span>
+                      </div>
+                      {detection.webrtc.relayOnly && (
+                        <div className="text-xs">Only TURN relay observed (strict NAT or UDP restricted)</div>
+                      )}
+                      {detection.webrtc.details.map((d, i) => (
+                        <div key={i} className="text-xs">{d}</div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {detection.quic && (
+              <div className="text-xs">
+                <p className="font-medium text-muted-foreground mb-1">QUIC/WebTransport:</p>
+                <div className="space-y-1 text-muted-foreground">
+                  <div>
+                    API supported: <span className="font-mono">{detection.quic.supported ? 'yes' : 'no'}</span>
+                  </div>
+                  {detection.quic.details.map((d, i) => (
+                    <div key={i} className="text-xs">{d}</div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <CardDescription>Click refresh to check for proxy usage</CardDescription>
