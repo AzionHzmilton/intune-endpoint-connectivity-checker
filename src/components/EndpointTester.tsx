@@ -17,6 +17,7 @@ export const EndpointTester = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [lookupType, setLookupType] = useState<LookupType>('FQDN');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [testProgress, setTestProgress] = useState({ completed: 0, total: 0, current: '' });
   const { toast } = useToast();
 
@@ -28,9 +29,15 @@ export const EndpointTester = () => {
     pending: testResults.filter(r => r.status === 'pending').length,
   };
 
-  const filteredResults = testResults.filter(result =>
-    result.url.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredResults = testResults.filter(result => {
+    const matchesSearch = result.url.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter ? result.status === statusFilter : true;
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleStatusFilter = (status: string) => {
+    setStatusFilter(statusFilter === status ? null : status);
+  };
 
   const loadEndpoints = async () => {
     setIsLoading(true);
@@ -116,7 +123,12 @@ export const EndpointTester = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-success">
+          <Card 
+            className={`border-l-4 border-l-success cursor-pointer transition-all hover:shadow-lg ${
+              statusFilter === 'success' ? 'ring-2 ring-success shadow-lg' : ''
+            }`}
+            onClick={() => handleStatusFilter('success')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-success" />
@@ -128,7 +140,12 @@ export const EndpointTester = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-destructive">
+          <Card 
+            className={`border-l-4 border-l-destructive cursor-pointer transition-all hover:shadow-lg ${
+              statusFilter === 'error' ? 'ring-2 ring-destructive shadow-lg' : ''
+            }`}
+            onClick={() => handleStatusFilter('error')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-2">
                 <XCircle className="h-5 w-5 text-destructive" />
@@ -140,7 +157,12 @@ export const EndpointTester = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-warning">
+          <Card 
+            className={`border-l-4 border-l-warning cursor-pointer transition-all hover:shadow-lg ${
+              statusFilter === 'pending' ? 'ring-2 ring-warning shadow-lg' : ''
+            }`}
+            onClick={() => handleStatusFilter('pending')}
+          >
             <CardContent className="p-6">
               <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5 text-warning" />
@@ -244,6 +266,21 @@ export const EndpointTester = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {statusFilter && (
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Filtering by: <strong className="capitalize">{statusFilter}</strong> results
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setStatusFilter(null)}
+                  >
+                    Clear Filter
+                  </Button>
+                </div>
+              )}
+              
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
