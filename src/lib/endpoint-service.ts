@@ -1,4 +1,5 @@
 import { IntuneEndpoint, EndpointTest, LookupType } from '@/types/endpoint';
+import { ProxyDetectionService } from '@/lib/proxy-detection';
 
 // Use a reliable CORS proxy for endpoint fetching (but not for connectivity testing)
 const CORS_PROXY = 'https://corsproxy.io/?';
@@ -102,6 +103,47 @@ export class EndpointService {
     try {
       // Determine if this is an IP address or FQDN
       const isIP = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(endpoint);
+
+      // Identify explicit scheme (non-HTTP/HTTPS)
+      const schemeMatch = endpoint.match(/^([a-zA-Z][\w+.-]*):/);
+      const scheme = schemeMatch?.[1]?.toLowerCase();
+      const isNonHttpScheme = !!scheme && scheme !== 'http' && scheme !== 'https';
+
+      if (isNonHttpScheme) {
+        // Use WebRTC STUN/ICE to infer UDP reachability for non-HTTP(S) checks
+        const webrtcStart = Date.now();
+        const detection = await ProxyDetectionService.detectProxy();
+        const responseTime = Date.now() - webrtcStart;
+
+        if (!detection.webrtc?.supported) {
+          return {
+            url: endpoint,
+            status: 'error',
+            responseTime,
+            error: 'WebRTC not supported in this browser (cannot run UDP/STUN test)',
+            timestamp: new Date(),
+          };
+        }
+
+        if (detection.webrtc.stunSucceeded) {
+          return {
+            url: endpoint,
+            status: 'success',
+            responseTime,
+            timestamp: new Date(),
+          };
+        }
+
+        return {
+          url: endpoint,
+          status: 'error',
+          responseTime,
+          error: detection.webrtc.relayOnly
+            ? 'Only TURN relay observed (UDP restricted or strict NAT)'
+            : 'STUN failed (UDP likely blocked)',
+          timestamp: new Date(),
+        };
+      }
       
       // For client-side testing, construct the test URL
       let testUrl: string;
