@@ -96,7 +96,7 @@ export class EndpointService {
     }
   }
 
-  static async testEndpointConnectivity(endpoint: string): Promise<EndpointTest> {
+  static async testEndpointConnectivity(endpoint: string, timeoutMs: number = 10000): Promise<EndpointTest> {
     const startTime = Date.now();
     
     try {
@@ -116,7 +116,7 @@ export class EndpointService {
       
       // Create abort controller with reasonable timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       
       try {
         // Attempt connection test - client-side only, no proxy
@@ -151,14 +151,14 @@ export class EndpointService {
               url: endpoint,
               status: 'error',
               responseTime,
-              error: 'Connection timeout (10s)',
+              error: `Connection timeout (${timeoutMs / 1000}s)`,
               timestamp: new Date(),
             };
           }
           
           // In no-cors mode, many "network errors" actually indicate the endpoint responded
           // This is a limitation of browser security, but we can infer connectivity
-          if (responseTime < 8000 && (
+          if (responseTime < (timeoutMs * 0.8) && (
             fetchError.message.includes('Failed to fetch') ||
             fetchError.message.includes('NetworkError') ||
             fetchError.message.includes('blocked by CORS') ||
@@ -197,7 +197,8 @@ export class EndpointService {
 
   static async testAllEndpoints(
     endpoints: string[],
-    onProgress?: (progress: { completed: number; total: number; current: string }) => void
+    onProgress?: (progress: { completed: number; total: number; current: string }) => void,
+    timeoutMs: number = 10000
   ): Promise<EndpointTest[]> {
     const results: EndpointTest[] = [];
     
@@ -212,7 +213,7 @@ export class EndpointService {
         const globalIndex = i + batchIndex;
         onProgress?.({ completed: globalIndex, total: endpoints.length, current: endpoint });
         
-        const result = await this.testEndpointConnectivity(endpoint);
+        const result = await this.testEndpointConnectivity(endpoint, timeoutMs);
         
         // Update progress after each endpoint completes
         onProgress?.({ completed: globalIndex + 1, total: endpoints.length, current: endpoint });

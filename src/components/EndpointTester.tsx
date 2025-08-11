@@ -19,6 +19,7 @@ export const EndpointTester = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [lookupType, setLookupType] = useState<LookupType>('FQDN');
   const [statusFilter, setStatusFilter] = useState<string | null>('error');
+  const [timeoutSeconds, setTimeoutSeconds] = useState(10);
   const [testProgress, setTestProgress] = useState({ completed: 0, total: 0, current: '' });
   const { toast } = useToast();
 
@@ -70,7 +71,8 @@ export const EndpointTester = () => {
     try {
       const results = await EndpointService.testAllEndpoints(
         endpoints,
-        (progress) => setTestProgress(progress)
+        (progress) => setTestProgress(progress),
+        timeoutSeconds * 1000
       );
       setTestResults(results);
       
@@ -222,25 +224,44 @@ export const EndpointTester = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-4">
-              <Button 
-                onClick={loadEndpoints} 
-                disabled={isLoading}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Reload Endpoints
-              </Button>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label htmlFor="timeout" className="text-sm font-medium text-muted-foreground">
+                    Timeout (seconds)
+                  </label>
+                  <Input
+                    id="timeout"
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={timeoutSeconds}
+                    onChange={(e) => setTimeoutSeconds(Math.max(1, Math.min(60, parseInt(e.target.value) || 10)))}
+                    className="w-20 mt-1"
+                  />
+                </div>
+              </div>
               
-              <Button 
-                onClick={testConnectivity} 
-                disabled={isTesting || endpoints.length === 0}
-                className="flex items-center gap-2"
-                variant="secondary"
-              >
-                <Activity className={`h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
-                Test Connectivity
-              </Button>
+              <div className="flex gap-4">
+                <Button 
+                  onClick={loadEndpoints} 
+                  disabled={isLoading}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  Reload Endpoints
+                </Button>
+                
+                <Button 
+                  onClick={testConnectivity} 
+                  disabled={isTesting || endpoints.length === 0}
+                  className="flex items-center gap-2"
+                  variant="secondary"
+                >
+                  <Activity className={`h-4 w-4 ${isTesting ? 'animate-pulse' : ''}`} />
+                  Test Connectivity
+                </Button>
+              </div>
             </div>
 
             {isTesting && (
