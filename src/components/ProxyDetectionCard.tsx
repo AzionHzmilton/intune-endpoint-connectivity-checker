@@ -130,6 +130,16 @@ export const ProxyDetectionCard = () => {
                 ))}
               </div>
             )}
+
+            {detection.details.timing && (
+              <div className="text-xs">
+                <span className="font-medium text-muted-foreground">Network timing: </span>
+                <span className="font-mono">{Math.round(detection.details.timing)}ms</span>
+                <span className="text-muted-foreground ml-1">
+                  ({detection.details.timing > 1000 ? 'slow response - possible proxy' : 'direct connection speed'})
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <CardDescription>Click refresh to check for proxy usage</CardDescription>

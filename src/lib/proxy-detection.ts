@@ -134,7 +134,7 @@ export class ProxyDetectionService {
 
     // Check for high latency (low confidence)
     if (latency > 1000) {
-      detectionMethods.push('High latency detected');
+      detectionMethods.push('High network timing detected (>1000ms)');
     }
 
     // Check for typical proxy indicators
