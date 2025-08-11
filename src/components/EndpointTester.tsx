@@ -18,7 +18,7 @@ export const EndpointTester = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [lookupType, setLookupType] = useState<LookupType>('FQDN');
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>('error');
   const [testProgress, setTestProgress] = useState({ completed: 0, total: 0, current: '' });
   const { toast } = useToast();
 
