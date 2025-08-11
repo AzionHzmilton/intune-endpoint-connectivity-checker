@@ -140,6 +140,22 @@ export const ProxyDetectionCard = () => {
                 </span>
               </div>
             )}
+
+            {detection.sslInspection && detection.sslInspection.details.length > 0 && (
+              <div className="text-xs">
+                <p className="font-medium text-muted-foreground mb-1">
+                  SSL Inspection {detection.sslInspection.detected ? '(Detected)' : '(Tests)'}:
+                </p>
+                <div className="space-y-1">
+                  {detection.sslInspection.details.map((detail, index) => (
+                    <div key={index} className="text-xs text-muted-foreground flex items-center space-x-1">
+                      <div className={`w-1 h-1 rounded-full ${detection.sslInspection?.detected ? 'bg-amber-500' : 'bg-muted-foreground'}`} />
+                      <span>{detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <CardDescription>Click refresh to check for proxy usage</CardDescription>

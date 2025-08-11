@@ -2,6 +2,10 @@ export interface ProxyDetectionResult {
   isProxyDetected: boolean;
   confidence: 'high' | 'medium' | 'low';
   detectionMethods: string[];
+  sslInspection?: {
+    detected: boolean;
+    details: string[];
+  };
   details: {
     externalIP?: string;
     localIPs?: string[];
@@ -106,12 +110,116 @@ export class ProxyDetectionService {
     return performance.now() - start;
   }
 
+  private static async checkSSLInspection(): Promise<{ detected: boolean; details: string[] }> {
+    const details: string[] = [];
+    let detected = false;
+
+    try {
+      // Test multiple HTTPS endpoints to detect SSL inspection
+      const testSites = [
+        'https://www.google.com',
+        'https://github.com',
+        'https://stackoverflow.com'
+      ];
+
+      const promises = testSites.map(async (url) => {
+        try {
+          const startTime = performance.now();
+          const response = await fetch(url, {
+            method: 'HEAD',
+            mode: 'cors',
+            signal: AbortSignal.timeout(5000)
+          });
+          const endTime = performance.now();
+
+          // Check for SSL inspection indicators
+          const headers = Array.from(response.headers.entries());
+          
+          // Look for corporate/proxy SSL certificate indicators
+          const suspiciousHeaders = headers.filter(([key, value]) => {
+            const lowerKey = key.toLowerCase();
+            const lowerValue = value.toLowerCase();
+            
+            return (
+              lowerKey.includes('proxy') ||
+              lowerKey.includes('firewall') ||
+              lowerKey.includes('security') ||
+              lowerValue.includes('corporate') ||
+              lowerValue.includes('inspection') ||
+              lowerValue.includes('zscaler') ||
+              lowerValue.includes('bluecoat') ||
+              lowerValue.includes('forcepoint') ||
+              lowerValue.includes('websense')
+            );
+          });
+
+          if (suspiciousHeaders.length > 0) {
+            detected = true;
+            details.push(`SSL inspection headers found for ${new URL(url).hostname}`);
+          }
+
+          // Check for unusually long SSL handshake times (may indicate inspection)
+          if (endTime - startTime > 2000) {
+            details.push(`Slow SSL handshake to ${new URL(url).hostname} (${Math.round(endTime - startTime)}ms)`);
+          }
+
+        } catch (error) {
+          // CORS errors are expected and don't indicate SSL inspection
+          if (error instanceof Error && !error.message.includes('CORS')) {
+            details.push(`SSL connection failed to ${new URL(url).hostname}: ${error.message}`);
+          }
+        }
+      });
+
+      await Promise.allSettled(promises);
+
+      // Additional check: Look for mixed content policies that might indicate inspection
+      if (window.location.protocol === 'https:') {
+        try {
+          // Try to detect if WebSocket connections are being intercepted
+          const wsTest = new WebSocket('wss://echo.websocket.org');
+          
+          wsTest.onopen = () => {
+            wsTest.close();
+          };
+          
+          wsTest.onerror = () => {
+            details.push('WebSocket SSL connection blocked (possible inspection)');
+            detected = true;
+          };
+          
+          // Clean up after 2 seconds
+          setTimeout(() => {
+            if (wsTest.readyState === WebSocket.CONNECTING) {
+              wsTest.close();
+            }
+          }, 2000);
+          
+        } catch (error) {
+          // WebSocket not supported or blocked
+        }
+      }
+
+      // Check for certificate transparency violations (advanced detection)
+      if (navigator.userAgent && !navigator.userAgent.includes('Chrome')) {
+        // This is a simplified check - in reality, this would require more complex certificate validation
+        details.push('Certificate validation limited in this browser');
+      }
+
+    } catch (error) {
+      details.push(`SSL inspection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return { detected, details };
+  }
+
   public static async detectProxy(): Promise<ProxyDetectionResult> {
-    const [externalIP, localIPs, headerCheck, latency] = await Promise.all([
+    const [externalIP, localIPs, headerCheck, latency, sslInspection] = await Promise.all([
       this.getExternalIP(),
       this.getLocalIPs(),
       this.checkProxyHeaders(),
-      this.measureLatency()
+      this.measureLatency(),
+      this.checkSSLInspection()
     ]);
 
     const detectionMethods: string[] = [];
@@ -120,6 +228,12 @@ export class ProxyDetectionService {
     // Check for proxy headers (high confidence)
     if (headerCheck.detected) {
       detectionMethods.push('Proxy headers detected');
+      confidence = 'high';
+    }
+
+    // Check for SSL inspection (high confidence)
+    if (sslInspection.detected) {
+      detectionMethods.push('SSL inspection detected');
       confidence = 'high';
     }
 
@@ -148,6 +262,7 @@ export class ProxyDetectionService {
       isProxyDetected,
       confidence,
       detectionMethods,
+      sslInspection,
       details: {
         externalIP,
         localIPs,
