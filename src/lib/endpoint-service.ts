@@ -1,41 +1,51 @@
 import { IntuneEndpoint, EndpointTest, LookupType } from '@/types/endpoint';
 
+// Use a reliable CORS proxy for endpoint fetching (but not for connectivity testing)
+const CORS_PROXY = 'https://corsproxy.io/?';
+
 export class EndpointService {
   static async fetchIntuneEndpoints(lookupType: LookupType = 'FQDN'): Promise<string[]> {
     const requestId = crypto.randomUUID();
     const apiUrl = `https://endpoints.office.com/endpoints/WorldWide?ServiceAreas=MEM&clientrequestid=${requestId}`;
     
     try {
-      // Fetch directly from Microsoft API - client-side only
-      const response = await fetch(apiUrl, {
+      // Use CORS proxy for endpoint fetching since Microsoft API doesn't support CORS
+      const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+      console.log('Fetching endpoints from:', proxiedUrl);
+      
+      const response = await fetch(proxiedUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Cache-Control': 'no-cache'
-        },
-        mode: 'cors',
-        credentials: 'omit'
+        }
       });
       
       if (!response.ok) {
-        throw new Error(`Microsoft API returned ${response.status}: ${response.statusText}`);
+        throw new Error(`CORS proxy returned ${response.status}: ${response.statusText}`);
       }
       
       const endpoints: IntuneEndpoint[] = await response.json();
+      console.log('Retrieved endpoints:', endpoints.length);
+      
       return this.extractEndpointsFromAPI(endpoints, lookupType);
       
     } catch (error) {
-      console.error('Error fetching Intune endpoints from Microsoft API:', error);
-      throw new Error(`Failed to fetch endpoints from Microsoft API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error fetching Intune endpoints:', error);
+      throw new Error(`Failed to fetch endpoints: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   private static extractEndpointsFromAPI(endpoints: IntuneEndpoint[], lookupType: LookupType): string[] {
+    console.log('Extracting endpoints for lookup type:', lookupType);
+    
     if (lookupType === 'FQDN') {
       // Filter for MEM (Intune) service area endpoints with URLs
       const memEndpoints = endpoints.filter(
         endpoint => endpoint.serviceArea === 'MEM' && endpoint.urls && endpoint.urls.length > 0
       );
+      
+      console.log('MEM endpoints with URLs:', memEndpoints.length);
       
       const urls = new Set<string>();
       memEndpoints.forEach(endpoint => {
@@ -50,6 +60,8 @@ export class EndpointService {
         });
       });
       
+      console.log('Extracted unique FQDNs:', urls.size);
+      
       if (urls.size === 0) {
         throw new Error('No valid FQDN endpoints found in Microsoft API response');
       }
@@ -61,6 +73,8 @@ export class EndpointService {
         endpoint => endpoint.serviceArea === 'MEM' && endpoint.ips && endpoint.ips.length > 0
       );
       
+      console.log('MEM endpoints with IPs:', memEndpoints.length);
+      
       const ips = new Set<string>();
       memEndpoints.forEach(endpoint => {
         endpoint.ips?.forEach(ip => {
@@ -71,6 +85,8 @@ export class EndpointService {
           }
         });
       });
+      
+      console.log('Extracted unique IPs:', ips.size);
       
       if (ips.size === 0) {
         throw new Error('No valid IP endpoints found in Microsoft API response');
@@ -87,7 +103,7 @@ export class EndpointService {
       // Determine if this is an IP address or FQDN
       const isIP = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(endpoint);
       
-      // For client-side testing, we'll use different approaches
+      // For client-side testing, construct the test URL
       let testUrl: string;
       
       if (isIP) {
@@ -103,7 +119,7 @@ export class EndpointService {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       try {
-        // Attempt connection test - client-side
+        // Attempt connection test - client-side only, no proxy
         await fetch(testUrl, {
           method: 'HEAD',
           mode: 'no-cors', // Required for cross-origin requests from client
