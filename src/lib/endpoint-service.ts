@@ -116,45 +116,59 @@ export class EndpointService {
         hostname = parsed.hostname.toLowerCase();
       } catch {}
 
-      const isKnownUdpService = hostname === 'time.windows.com';
+      const schemeIsUdpish = !!scheme && ['stun', 'stuns', 'turn', 'turns', 'ntp', 'udp'].includes(scheme);
+      const hintUdpInString = /(^|\b)(ntp|udp)(\b|:)/i.test(endpoint) || /:123(\b|$)/.test(endpoint);
+      const isKnownUdpService = hostname.endsWith('time.windows.com');
 
-      if (isNonHttpScheme || isKnownUdpService) {
+      if (isNonHttpScheme || schemeIsUdpish || hintUdpInString || isKnownUdpService) {
         // Use WebRTC STUN/ICE to infer UDP reachability for UDP/non-HTTP(S) checks
         const webrtcStart = Date.now();
-        const detection = await ProxyDetectionService.detectProxy();
-        const responseTime = Date.now() - webrtcStart;
+        try {
+          const detection = await ProxyDetectionService.detectProxy();
+          const responseTime = Date.now() - webrtcStart;
 
-        if (!detection.webrtc?.supported) {
+          if (!detection.webrtc?.supported) {
+            return {
+              url: endpoint,
+              status: 'error',
+              responseTime,
+              error: 'WebRTC not supported in this browser (cannot run UDP/STUN test)',
+              timestamp: new Date(),
+              method: 'webrtc-stun',
+            };
+          }
+
+          if (detection.webrtc.stunSucceeded) {
+            return {
+              url: endpoint,
+              status: 'success',
+              responseTime,
+              timestamp: new Date(),
+              method: 'webrtc-stun',
+            };
+          }
+
           return {
             url: endpoint,
             status: 'error',
             responseTime,
-            error: 'WebRTC not supported in this browser (cannot run UDP/STUN test)',
+            error: detection.webrtc.relayOnly
+              ? 'Only TURN relay observed (UDP restricted or strict NAT)'
+              : 'STUN failed (UDP likely blocked)',
             timestamp: new Date(),
             method: 'webrtc-stun',
           };
-        }
-
-        if (detection.webrtc.stunSucceeded) {
+        } catch (e) {
+          const responseTime = Date.now() - webrtcStart;
           return {
             url: endpoint,
-            status: 'success',
+            status: 'error',
             responseTime,
+            error: e instanceof Error ? e.message : 'STUN/ICE probe failed',
             timestamp: new Date(),
             method: 'webrtc-stun',
           };
         }
-
-        return {
-          url: endpoint,
-          status: 'error',
-          responseTime,
-          error: detection.webrtc.relayOnly
-            ? 'Only TURN relay observed (UDP restricted or strict NAT)'
-            : 'STUN failed (UDP likely blocked)',
-          timestamp: new Date(),
-          method: 'webrtc-stun',
-        };
       }
       
       // For client-side testing, construct the test URL
