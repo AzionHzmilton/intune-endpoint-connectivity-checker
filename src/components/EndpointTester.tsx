@@ -92,11 +92,11 @@ export const EndpointTester = () => {
           <div className="flex items-center justify-center gap-2 mb-4">
             <Activity className="h-8 w-8 text-primary" />
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Microsoft 365 Connectivity Tester
+              Intune Connectivity Tester
             </h1>
           </div>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Test network connectivity to Microsoft 365 endpoints required for proper service operation
+            Test network connectivity to Microsoft Intune endpoints required for proper service operation
           </p>
         </div>
 
