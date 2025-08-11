@@ -229,6 +229,17 @@ export class EndpointService {
             };
           }
 
+          // For IPs: any quick TLS/handshake failure still proves reachability
+          if (isIP && httpsResponseTime < timeoutMs * 0.9) {
+            return {
+              url: endpoint,
+              status: 'success',
+              responseTime: httpsResponseTime,
+              timestamp: new Date(),
+              method: 'http-head-https',
+            };
+          }
+
           // In no-cors mode, many "network errors" indicate the endpoint responded
           if (httpsResponseTime < (timeoutMs * 0.8) && (
             fetchError.message.includes('Failed to fetch') ||
@@ -288,12 +299,25 @@ export class EndpointService {
                 };
               }
 
+              // For IPs: any quick failure indicates reachability
+              if (isIP && httpRespTime < remaining * 0.9) {
+                return {
+                  url: endpoint,
+                  status: 'success',
+                  responseTime: elapsed + httpRespTime,
+                  timestamp: new Date(),
+                  method: 'http-head-http',
+                };
+              }
+
               // Similar inference for no-cors errors
               if (httpRespTime < remaining * 0.8 && (
-                httpError.message.includes('Failed to fetch') ||
-                httpError.message.includes('NetworkError') ||
-                httpError.message.includes('blocked by CORS') ||
-                httpError.message.includes('CORS')
+                (httpError.message && (
+                  httpError.message.includes('Failed to fetch') ||
+                  httpError.message.includes('NetworkError') ||
+                  httpError.message.includes('blocked by CORS') ||
+                  httpError.message.includes('CORS')
+                ))
               )) {
                 return {
                   url: endpoint,
