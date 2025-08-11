@@ -214,19 +214,13 @@ export class EndpointService {
       } catch (fetchError) {
         clearTimeout(timeoutId);
         const httpsResponseTime = Date.now() - startTime;
+        let forcedFallback = false;
 
         // Handle specific error types for client-side testing (HTTPS attempt)
         if (fetchError instanceof Error) {
           if (fetchError.name === 'AbortError') {
-            // HTTPS timed out - no time left for fallback
-            return {
-              url: endpoint,
-              status: 'error',
-              responseTime: httpsResponseTime,
-              error: `HTTPS timeout (${timeoutMs / 1000}s)`,
-              timestamp: new Date(),
-              method: 'http-head-https',
-            };
+            // HTTPS timed out - force HTTP fallback with short grace window
+            forcedFallback = true;
           }
 
           // For IPs: any quick TLS/handshake failure still proves reachability
@@ -259,7 +253,7 @@ export class EndpointService {
 
         // HTTPS failed; try HTTP fallback if we have remaining time
         const elapsed = httpsResponseTime;
-        const remaining = Math.max(0, timeoutMs - elapsed);
+        const remaining = forcedFallback ? 1500 : Math.max(0, timeoutMs - elapsed);
         if (remaining > 1000) {
           const httpUrl = isIP ? `http://${endpoint}` : (endpoint.startsWith('http') ? endpoint.replace(/^https:\/\//, 'http://') : `http://${endpoint}`);
           const httpController = new AbortController();
