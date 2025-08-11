@@ -303,9 +303,19 @@ export const EndpointTester = () => {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm truncate">{result.url}</p>
-                      {result.responseTime && (
+                      {result.status === 'success' && result.responseTime && (
                         <p className="text-xs text-muted-foreground">
                           Response time: {result.responseTime}ms
+                        </p>
+                      )}
+                      {result.status === 'error' && result.error && (
+                        <p className="text-xs text-destructive">
+                          Error: {result.error}
+                        </p>
+                      )}
+                      {result.status === 'error' && result.responseTime && !result.error && (
+                        <p className="text-xs text-muted-foreground">
+                          Time to failure: {result.responseTime}ms
                         </p>
                       )}
                     </div>
